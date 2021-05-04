@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dt-metrics-sample
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-http-server
+  labels:
+    app: frontend-http-server
+  namespace: dt-metrics-sample
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-http-server
+  template:
+    metadata:
+      labels:
+        app: frontend-http-server
+    spec:
+      containers:
+      - name: http-server
+        image: dtcookie/frontend-http-server:latest
+        ports:
+        - containerPort: 80
+        imagePullPolicy: Always
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-http-server
+  labels:
+    app: backend-http-server
+  namespace: dt-metrics-sample
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend-http-server
+  template:
+    metadata:
+      labels:
+        app: backend-http-server
+    spec:
+      containers:
+      - name: http-server
+        image: dtcookie/backend-http-server:latest
+        env:
+          - name: MODE
+            value: "backend"        
+        ports:
+        - containerPort: 80
+        imagePullPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-http-server
+  namespace: dt-metrics-sample
+spec:
+  selector:
+    app: backend-http-server
+  ports:
+    - protocol: TCP
+      port: 80

@@ -1,0 +1,180 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dynatrace-metrics
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dynatrace-metrics:system:auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  name: dynatrace-metrics-apiserver
+  namespace: dynatrace-metrics
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dynatrace-metrics-auth-reader
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+- kind: ServiceAccount
+  name: dynatrace-metrics-apiserver
+  namespace: dynatrace-metrics
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dynatrace-metrics-apiserver
+  name: dynatrace-metrics-apiserver
+  namespace: dynatrace-metrics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dynatrace-metrics-apiserver
+  template:
+    metadata:
+      labels:
+        app: dynatrace-metrics-apiserver
+      name: dynatrace-metrics-apiserver
+    spec:
+      serviceAccountName: dynatrace-metrics-apiserver
+      containers:
+      - name: dynatrace-metrics-apiserver
+        image: dtcookie/k8s-dynatrace-metrics-adapter-amd64:latest
+        env:
+          - name: API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: dynametric
+                key: apiToken
+          - name: BASE_URL
+            value: "https://#####.live.dynatrace.com"        
+        imagePullPolicy: Always
+        args:
+        - /adapter
+        - --secure-port=6443
+        - --logtostderr=true
+        - --v=2
+        ports:
+        - containerPort: 6443
+          name: https
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - mountPath: /tmp
+          name: temp-vol
+      volumes:
+      - name: temp-vol
+        emptyDir: {}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dynatrace-metrics-resource-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dynatrace-metrics-resource-reader
+subjects:
+- kind: ServiceAccount
+  name: dynatrace-metrics-apiserver
+  namespace: dynatrace-metrics
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: dynatrace-metrics-apiserver
+  namespace: dynatrace-metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dynatrace-metrics-apiserver
+  namespace: dynatrace-metrics
+spec:
+  ports:
+  - name: https
+    port: 443
+    targetPort: 6443
+  - name: http
+    port: 80
+    targetPort: 8080
+  selector:
+    app: dynatrace-metrics-apiserver
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1beta1.external.metrics.k8s.io
+spec:
+  service:
+    name: dynatrace-metrics-apiserver
+    namespace: dynatrace-metrics
+  group: external.metrics.k8s.io
+  version: v1beta1
+  insecureSkipTLSVerify: true
+  groupPriorityMinimum: 100
+  versionPriority: 100
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1beta2.external.metrics.k8s.io
+spec:
+  service:
+    name: dynatrace-metrics-apiserver
+    namespace: dynatrace-metrics
+  group: external.metrics.k8s.io
+  version: v1beta2
+  insecureSkipTLSVerify: true
+  groupPriorityMinimum: 100
+  versionPriority: 200
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dynatrace-metrics-server-resources
+rules:
+- apiGroups:
+  - external.metrics.k8s.io
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dynatrace-metrics-resource-reader
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - pods
+  - services
+  verbs:
+  - get
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hpa-controller-dynatrace-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dynatrace-metrics-server-resources
+subjects:
+- kind: ServiceAccount
+  name: horizontal-pod-autoscaler
+  namespace: kube-system
