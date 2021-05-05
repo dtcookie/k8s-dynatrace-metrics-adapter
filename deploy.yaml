@@ -60,7 +60,7 @@ spec:
                 key: apiToken
           - name: BASE_URL
             value: "https://#####.live.dynatrace.com"        
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         args:
         - /adapter
         - --secure-port=6443
