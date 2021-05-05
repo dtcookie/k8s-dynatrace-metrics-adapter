@@ -25,7 +25,7 @@ spec:
         image: dtcookie/frontend-http-server:latest
         ports:
         - containerPort: 80
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
 ---
 apiVersion: apps/v1
 kind: Deployment
