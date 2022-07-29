@@ -189,8 +189,10 @@ func (tc *Client) getDataPointsAPIv2(metricID string, aggregationType *metrics.A
 
 		dataPoints = append(dataPoints, &dataPoint)
 	}
-	key := resultV2.Result[0].Data[0].DimensionsMap["location.name"]
-	result.DataResult.DataPoints[key] = dataPoints
+
+	for _, value := range resultV2.Result[0].Data[0].DimensionsMap {
+		result.DataResult.DataPoints[value] = dataPoints
+	}
 
 	return &result, nil
 }
