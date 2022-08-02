@@ -59,5 +59,5 @@ type MetricV2 struct {
 	TSRequested      int64            `json:"-"`
 	ID               string           `json:"metricId"`
 	AggregationTypes AggregationTypes `json:"aggregationTypes"`
-	Dimesions        []DimensionV2    `json:"dimensionDefinitions"`
+	Dimensions        []DimensionV2    `json:"dimensionDefinitions"`
 }

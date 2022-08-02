@@ -37,7 +37,7 @@ func (tc *Client) GetMetrics() ([]cache.Item, error) {
 }
 
 func isAPIv1(id string) bool {
-	return strings.HasPrefix(id, "v1:") || strings.HasPrefix(id, "dynatrace.com.builtin:")
+	return strings.HasPrefix(id, "v1:") || strings.HasPrefix(id, "com.dynatrace.builtin:") || strings.HasPrefix(id, "custom")
 }
 
 func (tc *Client) getMetricAPIv1(id string) (cache.Item, error) {
@@ -72,7 +72,7 @@ func (tc *Client) getMetricAPIv2(metricId string) (cache.Item, error) {
 
 	metric.ID = metricV2.ID
 	metric.Dimensions = []string{}
-	for _, dim := range metricV2.Dimesions {
+	for _, dim := range metricV2.Dimensions {
 		metric.Dimensions = append(metric.Dimensions, dim.Key)
 	}
 	metric.AggregationTypes = metricV2.AggregationTypes
