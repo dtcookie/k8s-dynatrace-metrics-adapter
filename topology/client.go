@@ -3,6 +3,7 @@ package topology
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/dtcookie/k8s-dynatrace-metrics-adapter/cache"
@@ -35,12 +36,14 @@ func (tc *Client) GetMetrics() ([]cache.Item, error) {
 	return result, nil
 }
 
-func (tc *Client) GetMetric(id string, options map[string]interface{}) (cache.Item, error) {
-	if strings.Contains(id, ":#") {
-		return nil, nil
-	}
+func isAPIv1(id string) bool {
+	return strings.HasPrefix(id, "v1:") || strings.HasPrefix(id, "com.dynatrace.builtin:") || strings.HasPrefix(id, "custom")
+}
+
+func (tc *Client) getMetricAPIv1(id string) (cache.Item, error) {
 	var err error
 	var data []byte
+
 	if data, err = tc.restClient.GET(fmt.Sprintf("/api/v1/timeseries/%s?includeData=false", id), 200); err != nil {
 		return nil, err
 	}
@@ -48,7 +51,45 @@ func (tc *Client) GetMetric(id string, options map[string]interface{}) (cache.It
 	if err := json.Unmarshal(data, &metric); err != nil {
 		return nil, err
 	}
+
 	return &metric, nil
+}
+
+func (tc *Client) getMetricAPIv2(metricId string) (cache.Item, error) {
+	var err error
+	var data []byte
+
+	if data, err = tc.restClient.GET(fmt.Sprintf("/api/v2/metrics/%s", metricId), 200); err != nil {
+		return nil, err
+	}
+
+	var metric metrics.Metric
+	var metricV2 metrics.MetricV2
+
+	if err := json.Unmarshal(data, &metricV2); err != nil {
+		return nil, err
+	}
+
+	metric.ID = metricV2.ID
+	metric.Dimensions = []string{}
+	for _, dim := range metricV2.Dimensions {
+		metric.Dimensions = append(metric.Dimensions, dim.Key)
+	}
+	metric.AggregationTypes = metricV2.AggregationTypes
+
+	return &metric, nil
+}
+
+func (tc *Client) GetMetric(id string, options map[string]interface{}) (cache.Item, error) {
+	if strings.Contains(id, ":#") {
+		return nil, nil
+	}
+
+	if isAPIv1(id) {
+		return tc.getMetricAPIv1(id)
+	}
+
+	return tc.getMetricAPIv2(id)
 }
 
 type MetricList struct {
@@ -74,18 +115,12 @@ func (tc *Client) GetAllMetrics(fakeID string, options map[string]interface{}) (
 
 func Hide(v interface{}) {}
 
-func (tc *Client) GetDataPoints(timeseriesID string, options map[string]interface{}) (cache.Item, error) {
-	var aggregationType *metrics.AggregationType
-	var tags map[string]*string
-	if options != nil {
-		if v, found := options["agg"]; found {
-			agg := v.(metrics.AggregationType)
-			aggregationType = &agg
-		}
-		if v, found := options["tags"]; found {
-			tags = v.(map[string]*string)
-		}
-	}
+func (tc *Client) getDataPointsAPIv1(
+	timeseriesID string,
+	aggregationType *metrics.AggregationType,
+	tags map[string]*string,
+) (cache.Item, error) {
+
 	var err error
 	var data []byte
 	var url string
@@ -111,6 +146,76 @@ func (tc *Client) GetDataPoints(timeseriesID string, options map[string]interfac
 		return nil, err
 	}
 	return &result, nil
+}
+
+func (tc *Client) getDataPointsAPIv2(metricID string, aggregationType *metrics.AggregationType) (cache.Item, error) {
+
+	var err error
+	var data []byte
+	var path = fmt.Sprintf("/api/v2/metrics/query?metricSelector=%s", url.QueryEscape(metricID))
+
+	// time range and resolution
+	path = fmt.Sprintf("%v&resolution=m&from=now-5m&to=now", path)
+
+	if data, err = tc.restClient.GET(path, 200); err != nil {
+		return nil, err
+	}
+	result := metrics.QueryResult{}
+	resultV2 := metrics.QueryResultV2{}
+
+	if err := json.Unmarshal(data, &resultV2); err != nil {
+		return nil, err
+	}
+
+	if len(resultV2.Result) == 0 || len(resultV2.Result[0].Data) == 0 {
+		return nil, nil
+	}
+
+	result.TimeseriesID = resultV2.Result[0].ID
+	result.DataResult = &metrics.DataResult{}
+	result.DataResult.TimeseriesID = resultV2.Result[0].ID
+	result.DataResult.AggregationType = aggregationType
+	result.DataResult.Entities = resultV2.Result[0].Data[0].DimensionsMap
+	result.DataResult.DataPoints = map[string]metrics.DataPoints{}
+
+	dataPoints := metrics.DataPoints{}
+	for index, timestamp := range resultV2.Result[0].Data[0].Timestamps {
+		value := resultV2.Result[0].Data[0].Values[index]
+
+		dataPoint := metrics.DataPoint{
+			TimeStamp: timestamp,
+			Value:     &value,
+		}
+
+		dataPoints = append(dataPoints, &dataPoint)
+	}
+
+	for _, value := range resultV2.Result[0].Data[0].DimensionsMap {
+		result.DataResult.DataPoints[value] = dataPoints
+	}
+
+	return &result, nil
+}
+
+func (tc *Client) GetDataPoints(timeseriesID string, options map[string]interface{}) (cache.Item, error) {
+	var aggregationType *metrics.AggregationType
+	var tags map[string]*string
+
+	if options != nil {
+		if v, found := options["agg"]; found {
+			agg := v.(metrics.AggregationType)
+			aggregationType = &agg
+		}
+		if v, found := options["tags"]; found {
+			tags = v.(map[string]*string)
+		}
+	}
+
+	if isAPIv1(timeseriesID) {
+		return tc.getDataPointsAPIv1(timeseriesID, aggregationType, tags)
+	}
+
+	return tc.getDataPointsAPIv2(timeseriesID, aggregationType)
 }
 
 func (tc *Client) GetService(id string, options map[string]interface{}) (cache.Item, error) {

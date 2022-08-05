@@ -47,3 +47,17 @@ func (m *Metric) GetTSRequested() int64 {
 func (m *Metric) SetTSRequested(v int64) {
 	m.TSRequested = v
 }
+
+type DimensionV2 struct {
+	Key  string `json:"key"`
+	Name string `json:"displayName"`
+	Type string `json:"type"`
+}
+
+type MetricV2 struct {
+	TSQueried        int64            `json:"-"`
+	TSRequested      int64            `json:"-"`
+	ID               string           `json:"metricId"`
+	AggregationTypes AggregationTypes `json:"aggregationTypes"`
+	Dimensions        []DimensionV2    `json:"dimensionDefinitions"`
+}

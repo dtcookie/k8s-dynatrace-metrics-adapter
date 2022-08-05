@@ -33,7 +33,7 @@ import (
 type MetricsAdapter struct {
 	basecmd.AdapterBase
 
-	// Message is printed on succesful startup
+	// Message is printed on successful startup
 	Message string
 }
 
@@ -77,7 +77,9 @@ func localMain() {
 	go ListAllExternalMetrics(prov)
 	for {
 		selector := labels.NewSelector()
-		valueList, err := prov.GetExternalMetric("default", selector, provider.ExternalMetricInfo{Metric: "com.dynatrace.builtin:pgi.jvm.garbagecollectioncount"})
+
+		valueList, err := prov.GetExternalMetric("default", selector,
+			provider.ExternalMetricInfo{Metric: "dsfm:synthetic.browser.engine_utilization:max:filter(eq(\"dt.entity.synthetic_location\", \"SYNTHETIC_LOCATION-7BA305221EFA8DBF\")):merge(\"location.name\", \"host.name\", \"dt.active_gate.working_mode\", \"dt.active_gate.id\"):last"})
 		if err != nil {
 			klog.Error("failed to query external metric", err.Error())
 		}
