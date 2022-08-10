@@ -51,7 +51,7 @@ spec:
       serviceAccountName: dynatrace-metrics-apiserver
       containers:
       - name: dynatrace-metrics-apiserver
-        image: dtcookie/k8s-dynatrace-metrics-adapter-amd64:latest
+        image: dtcookie/k8s-dynatrace-metrics-adapter-amd64:v0.0.1
         env:
           - name: API_TOKEN
             valueFrom:
