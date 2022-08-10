@@ -1,1 +1,1 @@
-This is an internal test release
+This is an internal test release v0.0.1
